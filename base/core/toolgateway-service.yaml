@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: toolgateway-service
+  labels:
+    app.kubernetes.io/name: toolgateway
+    app.kubernetes.io/part-of: mcp-gateway
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: toolgateway
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

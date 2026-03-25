@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcpgateway-service
+  labels:
+    app.kubernetes.io/name: mcpgateway
+    app.kubernetes.io/part-of: mcp-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mcpgateway
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

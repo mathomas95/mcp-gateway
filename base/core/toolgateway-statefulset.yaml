@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: toolgateway
+  labels:
+    app.kubernetes.io/name: toolgateway
+    app.kubernetes.io/part-of: mcp-gateway
+spec:
+  serviceName: toolgateway-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: toolgateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: toolgateway
+        app.kubernetes.io/part-of: mcp-gateway
+        adapter/type: "mcp"
+    spec:
+      serviceAccountName: mcpgateway-sa
+      containers:
+        - name: toolgateway
+          image: nkp-mgmt.uwcu.org:5000/mcp-gateway/toolgateway:latest
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: Redis__ConnectionString
+              value: "redis-service:6379"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30

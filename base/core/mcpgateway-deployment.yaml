@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcpgateway
+  labels:
+    app.kubernetes.io/name: mcpgateway
+    app.kubernetes.io/part-of: mcp-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcpgateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcpgateway
+        app.kubernetes.io/part-of: mcp-gateway
+    spec:
+      serviceAccountName: mcpgateway-sa
+      containers:
+        - name: mcpgateway
+          image: nkp-mgmt.uwcu.org:5000/mcp-gateway/mcpgateway-service:latest
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: gateway-config
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /adapters
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
