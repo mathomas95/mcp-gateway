@@ -13,6 +13,6 @@ data:
   # Kubernetes namespace for managed MCP server pods (upstream default: "adapter")
   AdapterNamespace: "mcp-gateway-np"
   # Container registry for dynamically deployed MCP servers
-  ContainerRegistrySettings__Endpoint: "nkp-mgmt.uwcu.org:5000/mcp-servers"
+  ContainerRegistrySettings__Endpoint: "nkp-mgmt.uwcu.org:5000"
   # Public origin for MCP protocol resource metadata
   PublicOrigin: "https://mcp-gateway.nkp-np.uwcu.org/"
