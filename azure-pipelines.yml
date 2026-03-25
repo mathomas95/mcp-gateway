@@ -1,0 +1,115 @@
+# MCP Gateway Build Pipeline
+# Builds mcpgateway-service and toolgateway .NET images, pushes to Harbor.
+# Runs on NKP-Agents pool (in-cluster Blue-Agent pods with Docker-in-Docker).
+#
+# Harbor: nkp-mgmt.uwcu.org:5000/mcp-gateway via NKP-Harbor service connection.
+# Images: mcp-gateway/mcpgateway-service, mcp-gateway/toolgateway
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    exclude:
+      - "*.md"
+      - "docs/**"
+      - "sample-servers/**"
+      - "deployment/**"
+      - "openapi/**"
+
+pr:
+  branches:
+    include: [main]
+  paths:
+    exclude:
+      - "*.md"
+      - "docs/**"
+      - "sample-servers/**"
+
+variables:
+  registryConnection: NKP-Harbor
+  project: mcp-gateway
+
+pool:
+  name: NKP-Agents
+
+stages:
+  - stage: Build
+    displayName: Build & Push MCP Gateway Images
+    jobs:
+      # -----------------------------------------------------------------
+      # Job 1: Build mcpgateway-service (the main gateway API)
+      # -----------------------------------------------------------------
+      - job: BuildService
+        displayName: Build mcpgateway-service
+        steps:
+          - checkout: self
+
+          - task: Docker@2
+            displayName: "Build mcpgateway-service"
+            inputs:
+              command: build
+              containerRegistry: $(registryConnection)
+              repository: $(project)/mcpgateway-service
+              Dockerfile: $(Build.SourcesDirectory)/dotnet/Microsoft.McpGateway.Service/Dockerfile
+              buildContext: $(Build.SourcesDirectory)/dotnet
+              tags: |
+                $(Build.BuildId)
+                latest
+
+          - task: Docker@2
+            displayName: "Push mcpgateway-service:$(Build.BuildId)"
+            inputs:
+              command: push
+              containerRegistry: $(registryConnection)
+              repository: $(project)/mcpgateway-service
+              tags: |
+                $(Build.BuildId)
+
+          - task: Docker@2
+            displayName: "Push mcpgateway-service:latest"
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              command: push
+              containerRegistry: $(registryConnection)
+              repository: $(project)/mcpgateway-service
+              tags: |
+                latest
+
+      # -----------------------------------------------------------------
+      # Job 2: Build toolgateway (the tool router)
+      # -----------------------------------------------------------------
+      - job: BuildTools
+        displayName: Build toolgateway
+        steps:
+          - checkout: self
+
+          - task: Docker@2
+            displayName: "Build toolgateway"
+            inputs:
+              command: build
+              containerRegistry: $(registryConnection)
+              repository: $(project)/toolgateway
+              Dockerfile: $(Build.SourcesDirectory)/dotnet/Microsoft.McpGateway.Tools/Dockerfile
+              buildContext: $(Build.SourcesDirectory)/dotnet
+              tags: |
+                $(Build.BuildId)
+                latest
+
+          - task: Docker@2
+            displayName: "Push toolgateway:$(Build.BuildId)"
+            inputs:
+              command: push
+              containerRegistry: $(registryConnection)
+              repository: $(project)/toolgateway
+              tags: |
+                $(Build.BuildId)
+
+          - task: Docker@2
+            displayName: "Push toolgateway:latest"
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              command: push
+              containerRegistry: $(registryConnection)
+              repository: $(project)/toolgateway
+              tags: |
+                latest
