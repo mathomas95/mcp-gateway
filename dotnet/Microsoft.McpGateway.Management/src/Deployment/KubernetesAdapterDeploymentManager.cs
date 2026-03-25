@@ -13,18 +13,20 @@ namespace Microsoft.McpGateway.Management.Deployment
 {
     public class KubernetesAdapterDeploymentManager : IAdapterDeploymentManager
     {
-        private const string AdapterNamespace = "adapter";
+        // UWCU fork: namespace passed via constructor (upstream hardcodes "adapter")
+        private readonly string AdapterNamespace;
         private readonly IKubeClientWrapper _kubeClient;
         private readonly string _containerRegistryAddress;
         private readonly ILogger<KubernetesAdapterDeploymentManager> _logger;
 
-        public KubernetesAdapterDeploymentManager(string containerRegistryAddress, IKubeClientWrapper kubeClient, ILogger<KubernetesAdapterDeploymentManager> logger)
+        public KubernetesAdapterDeploymentManager(string containerRegistryAddress, IKubeClientWrapper kubeClient, ILogger<KubernetesAdapterDeploymentManager> logger, string adapterNamespace = "adapter")
         {
             ArgumentException.ThrowIfNullOrEmpty(containerRegistryAddress);
 
             _containerRegistryAddress = containerRegistryAddress;
             _kubeClient = kubeClient ?? throw new ArgumentNullException(nameof(kubeClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            AdapterNamespace = adapterNamespace;
         }
 
         public async Task CreateDeploymentAsync(AdapterData request, ResourceType resourceType, CancellationToken cancellationToken)

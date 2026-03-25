@@ -88,7 +88,7 @@ builder.Services.AddSingleton<IPermissionProvider, SimplePermissionProvider>();
 builder.Services.AddSingleton<IAdapterDeploymentManager>(c =>
 {
     var config = builder.Configuration.GetSection("ContainerRegistrySettings");
-    return new KubernetesAdapterDeploymentManager(config["Endpoint"]!, c.GetRequiredService<IKubeClientWrapper>(), c.GetRequiredService<ILogger<KubernetesAdapterDeploymentManager>>());
+    return new KubernetesAdapterDeploymentManager(config["Endpoint"]!, c.GetRequiredService<IKubeClientWrapper>(), c.GetRequiredService<ILogger<KubernetesAdapterDeploymentManager>>(), adapterNamespace);
 });
 builder.Services.AddSingleton<IAdapterManagementService, AdapterManagementService>();
 builder.Services.AddSingleton<IToolManagementService, ToolManagementService>();
