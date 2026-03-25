@@ -24,6 +24,13 @@ rules:
     verbs: ["get", "watch"]
 
 ---
+# ServiceAccount for dynamically deployed MCP server pods (adapters/tools)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workload-sa
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
