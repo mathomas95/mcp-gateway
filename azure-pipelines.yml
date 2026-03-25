@@ -1,9 +1,15 @@
 # MCP Gateway Build Pipeline
-# Builds mcpgateway-service and toolgateway .NET images, pushes to Harbor.
+# Detects changed components, builds only affected images, pushes to Harbor.
 # Runs on NKP-Agents pool (in-cluster Blue-Agent pods with Docker-in-Docker).
 #
 # Harbor: nkp-mgmt.uwcu.org:5000/mcp-gateway via NKP-Harbor service connection.
 # Images: mcp-gateway/mcpgateway-service, mcp-gateway/toolgateway, mcp-gateway/mcp-proxy
+#
+# Change detection:
+#   dotnet/Microsoft.McpGateway.Service/  → mcpgateway-service
+#   dotnet/Microsoft.McpGateway.Tools/    → toolgateway
+#   dotnet/Microsoft.McpGateway.Management/ or dotnet/Directory.Packages.props → both .NET images
+#   sample-servers/mcp-proxy/             → mcp-proxy
 
 trigger:
   branches:
@@ -16,6 +22,8 @@ trigger:
       - "sample-servers/tool-example/**"
       - "deployment/**"
       - "openapi/**"
+      - "base/**"
+      - "overlays/**"
 
 pr:
   branches:
@@ -26,6 +34,8 @@ pr:
       - "docs/**"
       - "sample-servers/mcp-example/**"
       - "sample-servers/tool-example/**"
+      - "base/**"
+      - "overlays/**"
 
 variables:
   registryConnection: NKP-Harbor
@@ -39,10 +49,104 @@ stages:
     displayName: Build & Push MCP Gateway Images
     jobs:
       # -----------------------------------------------------------------
-      # Job 1: Build mcpgateway-service (the main gateway API)
+      # Job 1: Detect which components changed
+      # -----------------------------------------------------------------
+      - job: Detect
+        displayName: Detect Changed Components
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - bash: |
+              set -euo pipefail
+
+              # Manual trigger: build all
+              if [ "$(Build.Reason)" = "Manual" ]; then
+                echo "Manual trigger — building all images"
+                echo "##vso[task.setVariable variable=buildService;isOutput=true]true"
+                echo "##vso[task.setVariable variable=buildTools;isOutput=true]true"
+                echo "##vso[task.setVariable variable=buildProxy;isOutput=true]true"
+                exit 0
+              fi
+
+              # Determine diff base
+              if [ "$(Build.Reason)" = "PullRequest" ]; then
+                TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
+                TARGET_BRANCH="${TARGET_BRANCH#refs/heads/}"
+                git fetch origin "$TARGET_BRANCH" --quiet
+                MERGE_BASE=$(git merge-base HEAD "origin/$TARGET_BRANCH")
+                CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" HEAD)
+              else
+                COMMIT_COUNT=$(git rev-list --count HEAD)
+                if [ "$COMMIT_COUNT" -le 1 ]; then
+                  echo "Initial commit — building all images"
+                  CHANGED_FILES=$(git ls-tree -r --name-only HEAD)
+                else
+                  CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+                fi
+              fi
+
+              echo "Changed files:"
+              echo "$CHANGED_FILES" | sed 's/^/  /'
+
+              BUILD_SERVICE=false
+              BUILD_TOOLS=false
+              BUILD_PROXY=false
+
+              # Shared library or package versions → rebuild both .NET images
+              if echo "$CHANGED_FILES" | grep -qE "^dotnet/Microsoft\.McpGateway\.Management/|^dotnet/Directory\.Packages\.props|^dotnet/Microsoft\.McpGateway\.sln"; then
+                echo "Shared .NET dependency changed — building both service and tools"
+                BUILD_SERVICE=true
+                BUILD_TOOLS=true
+              fi
+
+              # Service-specific changes
+              if echo "$CHANGED_FILES" | grep -q "^dotnet/Microsoft\.McpGateway\.Service/"; then
+                echo "Service changed — building mcpgateway-service"
+                BUILD_SERVICE=true
+              fi
+
+              # Tools-specific changes
+              if echo "$CHANGED_FILES" | grep -q "^dotnet/Microsoft\.McpGateway\.Tools/"; then
+                echo "Tools changed — building toolgateway"
+                BUILD_TOOLS=true
+              fi
+
+              # Proxy changes
+              if echo "$CHANGED_FILES" | grep -q "^sample-servers/mcp-proxy/"; then
+                echo "Proxy changed — building mcp-proxy"
+                BUILD_PROXY=true
+              fi
+
+              # Dockerfile changes (in case Dockerfiles are touched directly)
+              if echo "$CHANGED_FILES" | grep -q "^dotnet/Microsoft\.McpGateway\.Service/Dockerfile"; then
+                BUILD_SERVICE=true
+              fi
+              if echo "$CHANGED_FILES" | grep -q "^dotnet/Microsoft\.McpGateway\.Tools/Dockerfile"; then
+                BUILD_TOOLS=true
+              fi
+
+              if [ "$BUILD_SERVICE" = false ] && [ "$BUILD_TOOLS" = false ] && [ "$BUILD_PROXY" = false ]; then
+                echo "No buildable components affected."
+              fi
+
+              echo "Build service: $BUILD_SERVICE"
+              echo "Build tools: $BUILD_TOOLS"
+              echo "Build proxy: $BUILD_PROXY"
+
+              echo "##vso[task.setVariable variable=buildService;isOutput=true]$BUILD_SERVICE"
+              echo "##vso[task.setVariable variable=buildTools;isOutput=true]$BUILD_TOOLS"
+              echo "##vso[task.setVariable variable=buildProxy;isOutput=true]$BUILD_PROXY"
+            name: detect
+            displayName: Detect Changes
+
+      # -----------------------------------------------------------------
+      # Job 2: Build mcpgateway-service (the main gateway API)
       # -----------------------------------------------------------------
       - job: BuildService
         displayName: Build mcpgateway-service
+        dependsOn: Detect
+        condition: and(succeeded(), eq(dependencies.Detect.outputs['detect.buildService'], 'true'))
         steps:
           - checkout: self
 
@@ -78,10 +182,12 @@ stages:
                 latest
 
       # -----------------------------------------------------------------
-      # Job 2: Build toolgateway (the tool router)
+      # Job 3: Build toolgateway (the tool router)
       # -----------------------------------------------------------------
       - job: BuildTools
         displayName: Build toolgateway
+        dependsOn: Detect
+        condition: and(succeeded(), eq(dependencies.Detect.outputs['detect.buildTools'], 'true'))
         steps:
           - checkout: self
 
@@ -117,10 +223,12 @@ stages:
                 latest
 
       # -----------------------------------------------------------------
-      # Job 3: Build mcp-proxy (Python proxy for existing MCP servers)
+      # Job 4: Build mcp-proxy (Python proxy for existing MCP servers)
       # -----------------------------------------------------------------
       - job: BuildProxy
         displayName: Build mcp-proxy
+        dependsOn: Detect
+        condition: and(succeeded(), eq(dependencies.Detect.outputs['detect.buildProxy'], 'true'))
         steps:
           - checkout: self
 

@@ -24,6 +24,9 @@ var credential = new DefaultAzureCredential();
 builder.Services.AddApplicationInsightsTelemetry();
 builder.Services.AddLogging();
 
+// UWCU fork: namespace configurable via env var (upstream hardcodes "adapter")
+var adapterNamespace = builder.Configuration.GetValue<string>("AdapterNamespace") ?? "adapter";
+
 builder.Services.AddSingleton<IKubernetesClientFactory, LocalKubernetesClientFactory>();
 builder.Services.AddSingleton<IAdapterSessionStore, DistributedMemorySessionStore>();
 builder.Services.AddSingleton<IServiceNodeInfoProvider>(sp =>
@@ -76,8 +79,6 @@ else
     .AddMicrosoftIdentityWebApi(azureAdConfig);
 }
 
-// UWCU fork: namespace configurable via env var (upstream hardcodes "adapter")
-var adapterNamespace = builder.Configuration.GetValue<string>("AdapterNamespace") ?? "adapter";
 builder.Services.AddSingleton<IKubeClientWrapper>(c =>
 {
     var kubeClientFactory = c.GetRequiredService<IKubernetesClientFactory>();
