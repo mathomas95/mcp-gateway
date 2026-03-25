@@ -26,7 +26,11 @@ builder.Services.AddLogging();
 
 builder.Services.AddSingleton<IKubernetesClientFactory, LocalKubernetesClientFactory>();
 builder.Services.AddSingleton<IAdapterSessionStore, DistributedMemorySessionStore>();
-builder.Services.AddSingleton<IServiceNodeInfoProvider, AdapterKubernetesNodeInfoProvider>();
+builder.Services.AddSingleton<IServiceNodeInfoProvider>(sp =>
+    new AdapterKubernetesNodeInfoProvider(
+        sp.GetRequiredService<IKubernetesClientFactory>(),
+        sp.GetRequiredService<ILogger<AdapterKubernetesNodeInfoProvider>>(),
+        adapterNamespace));
 builder.Services.AddSingleton<ISessionRoutingHandler, AdapterSessionRoutingHandler>();
 
 // UWCU fork: Redis storage in all environments. Entra ID auth in production, dev bypass in development.
@@ -72,10 +76,12 @@ else
     .AddMicrosoftIdentityWebApi(azureAdConfig);
 }
 
+// UWCU fork: namespace configurable via env var (upstream hardcodes "adapter")
+var adapterNamespace = builder.Configuration.GetValue<string>("AdapterNamespace") ?? "adapter";
 builder.Services.AddSingleton<IKubeClientWrapper>(c =>
 {
     var kubeClientFactory = c.GetRequiredService<IKubernetesClientFactory>();
-    return new KubeClient(kubeClientFactory, "adapter");
+    return new KubeClient(kubeClientFactory, adapterNamespace);
 });
 builder.Services.AddSingleton<IPermissionProvider, SimplePermissionProvider>();
 builder.Services.AddSingleton<IAdapterDeploymentManager>(c =>

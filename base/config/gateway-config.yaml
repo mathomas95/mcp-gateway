@@ -10,6 +10,8 @@ data:
   ASPNETCORE_ENVIRONMENT: "Development"
   # Redis connection (shared between mcpgateway and toolgateway)
   Redis__ConnectionString: "redis-service:6379"
+  # Kubernetes namespace for managed MCP server pods (upstream default: "adapter")
+  AdapterNamespace: "mcp-gateway-np"
   # Container registry for dynamically deployed MCP servers
   ContainerRegistrySettings__Endpoint: "nkp-mgmt.uwcu.org:5000/mcp-servers"
   # Public origin for MCP protocol resource metadata

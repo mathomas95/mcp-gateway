@@ -11,7 +11,8 @@ namespace Microsoft.McpGateway.Service.Routing
 {
     public class AdapterKubernetesNodeInfoProvider : IServiceNodeInfoProvider
     {
-        private const string AdapterNamespace = "adapter";
+        // UWCU fork: namespace configurable via constructor (upstream hardcodes "adapter")
+        private readonly string _adapterNamespace;
         private const string AdapterLabel = "adapter/type=mcp";
         private const string RunningField = "status.phase=Running";
         private const int AdapterListenerPort = 8000;
@@ -23,10 +24,11 @@ namespace Microsoft.McpGateway.Service.Routing
         private readonly TaskCompletionSource<bool> _initialFetchCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _disposed = false;
 
-        public AdapterKubernetesNodeInfoProvider(IKubernetesClientFactory kubeClientFactory, ILogger<AdapterKubernetesNodeInfoProvider> logger)
+        public AdapterKubernetesNodeInfoProvider(IKubernetesClientFactory kubeClientFactory, ILogger<AdapterKubernetesNodeInfoProvider> logger, string adapterNamespace = "adapter")
         {
             _kubeClientFactory = kubeClientFactory ?? throw new ArgumentNullException(nameof(kubeClientFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _adapterNamespace = adapterNamespace;
 
             FetchPodAddressInfo();
         }
@@ -38,7 +40,7 @@ namespace Microsoft.McpGateway.Service.Routing
 
             var healthyPods = GetHealthyPods(adapterName).ToDictionary(
                 p => p,
-                p => $"http://{p}.{adapterName}-service.{AdapterNamespace}.svc.cluster.local:{AdapterListenerPort}");
+                p => $"http://{p}.{adapterName}-service.{_adapterNamespace}.svc.cluster.local:{AdapterListenerPort}");
 
             return healthyPods;
         }
@@ -60,7 +62,7 @@ namespace Microsoft.McpGateway.Service.Routing
                     try
                     {
                         var pods = await kubeClient.CoreV1.ListNamespacedPodAsync(
-                            namespaceParameter: AdapterNamespace,
+                            namespaceParameter: _adapterNamespace,
                             labelSelector: AdapterLabel,
                             fieldSelector: RunningField,
                             cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -96,7 +98,7 @@ namespace Microsoft.McpGateway.Service.Routing
 
                         var watcherEnd = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                         using var watcher = kubeClient.CoreV1.WatchListNamespacedPod(
-                            namespaceParameter: AdapterNamespace,
+                            namespaceParameter: _adapterNamespace,
                             labelSelector: AdapterLabel,
                             fieldSelector: RunningField,
                             resourceVersion: pods.Metadata?.ResourceVersion,
